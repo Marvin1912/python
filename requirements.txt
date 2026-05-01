@@ -1,0 +1,6 @@
+flask
+langchain
+langchain-anthropic
+youtube-transcript-api
+google-api-python-client
+python-dotenv
