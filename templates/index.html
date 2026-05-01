@@ -6,6 +6,49 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-    <h1>YouTube Summarizer</h1>
+    <main>
+        <h1>YouTube Summarizer</h1>
+
+        <form id="summarize-form">
+            <label for="video-input">YouTube video URL or ID</label>
+            <input
+                id="video-input"
+                name="video_id"
+                type="text"
+                placeholder="https://www.youtube.com/watch?v=... or video ID"
+                required
+                autocomplete="off"
+            >
+
+            <fieldset>
+                <legend>Summarize</legend>
+                <label><input type="radio" name="mode" value="transcript" checked> Transcript</label>
+                <label><input type="radio" name="mode" value="comments"> Comments</label>
+                <label><input type="radio" name="mode" value="both"> Both</label>
+            </fieldset>
+
+            <button id="submit-btn" type="submit">Summarize</button>
+        </form>
+
+        <div id="status" class="status" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            <span class="status-text">Working&hellip;</span>
+        </div>
+
+        <div id="error" class="error" hidden></div>
+
+        <section id="results" hidden>
+            <article id="transcript-result" class="result" hidden>
+                <h2>Transcript summary</h2>
+                <p class="summary-text"></p>
+            </article>
+            <article id="comments-result" class="result" hidden>
+                <h2>Comments summary</h2>
+                <p class="summary-text"></p>
+            </article>
+        </section>
+    </main>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>
