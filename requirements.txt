@@ -1,4 +1,5 @@
 flask
+gunicorn
 langchain
 langchain-anthropic
 youtube-transcript-api
