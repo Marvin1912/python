@@ -64,6 +64,23 @@
 
     <section class="card">
       <div class="stats-header">
+        <h2>History</h2>
+        <label class="range-select">
+          Range
+          <select id="history-range">
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="all" selected>All</option>
+          </select>
+        </label>
+        <a id="export-pdf" class="button-link" href="/api/readings/export.pdf?range=all">Export PDF</a>
+      </div>
+      <div id="history-output"></div>
+      <p id="history-message" class="message"></p>
+    </section>
+
+    <section class="card">
+      <div class="stats-header">
         <h2>Dashboard</h2>
         <label class="range-select">
           Range

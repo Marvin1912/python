@@ -61,6 +61,42 @@ def insert_reading(
     return _row_to_dict(row)
 
 
+def update_reading(
+    reading_id: int,
+    *,
+    systolic: int,
+    diastolic: int,
+    pulse: Optional[int],
+    note: Optional[str],
+    measured_at: Optional[datetime],
+) -> Optional[dict[str, Any]]:
+    schema = db.schema()
+    sql = f"""
+        UPDATE {schema}.readings
+        SET measured_at = COALESCE(%s, measured_at),
+            systolic = %s,
+            diastolic = %s,
+            pulse = %s,
+            note = %s
+        WHERE id = %s
+        RETURNING id, measured_at, systolic, diastolic, pulse, note, created_at
+    """
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (measured_at, systolic, diastolic, pulse, note, reading_id))
+            row = cur.fetchone()
+    return _row_to_dict(row) if row else None
+
+
+def delete_reading(reading_id: int) -> bool:
+    schema = db.schema()
+    sql = f"DELETE FROM {schema}.readings WHERE id = %s"
+    with db.get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (reading_id,))
+            return cur.rowcount > 0
+
+
 def list_readings(range_key: str) -> list[dict[str, Any]]:
     schema = db.schema()
     where = _range_sql(range_key)
