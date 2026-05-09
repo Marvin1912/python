@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Blood Pressure Tracker</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Blood Pressure Tracker</h1>
+    <p class="subtitle">Log readings, see your stats, and track trends over time.</p>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>New reading</h2>
+      <form id="reading-form">
+        <div class="row">
+          <label>
+            Systolic (upper)
+            <input type="number" name="systolic" min="50" max="250" required />
+          </label>
+          <label>
+            Diastolic (lower)
+            <input type="number" name="diastolic" min="30" max="150" required />
+          </label>
+          <label>
+            Pulse (optional)
+            <input type="number" name="pulse" min="20" max="250" />
+          </label>
+        </div>
+        <label>
+          Measured at (optional — defaults to now)
+          <input type="datetime-local" name="measured_at" />
+        </label>
+        <label>
+          Note (optional)
+          <textarea name="note" rows="2" placeholder="e.g. after coffee, left arm, sitting"></textarea>
+        </label>
+        <button type="submit">Save reading</button>
+        <p id="form-message" class="message"></p>
+      </form>
+      <div id="latest-reading"></div>
+    </section>
+
+    <section class="card">
+      <div class="stats-header">
+        <h2>Stats</h2>
+        <label class="range-select">
+          Range
+          <select id="stats-range">
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="all" selected>All</option>
+          </select>
+        </label>
+        <button type="button" id="stats-button">Show average &amp; median</button>
+      </div>
+      <div id="stats-output" class="stats-output"></div>
+    </section>
+
+    <section class="card">
+      <div class="stats-header">
+        <h2>Dashboard</h2>
+        <label class="range-select">
+          Range
+          <select id="chart-range">
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="all" selected>All</option>
+          </select>
+        </label>
+      </div>
+      <div class="chart-wrapper">
+        <canvas id="bp-chart"></canvas>
+      </div>
+      <p id="chart-message" class="message"></p>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
