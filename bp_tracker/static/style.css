@@ -216,3 +216,105 @@ button:hover {
   position: relative;
   height: 320px;
 }
+
+.history-row {
+  padding: 0.75rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.history-row-main {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  flex: 1 1 320px;
+}
+
+.history-row .pair {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.history-row .meta {
+  color: var(--muted);
+  font-size: 0.85rem;
+  flex: 1 1 200px;
+}
+
+.history-row-editing {
+  display: block;
+}
+
+.history-edit-form .row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.5rem;
+}
+
+.history-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+
+.history-edit-form input,
+.history-edit-form textarea {
+  font: inherit;
+  color: var(--fg);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
+}
+
+.row-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.row-actions button {
+  padding: 0.4rem 0.85rem;
+  font-size: 0.85rem;
+}
+
+button.secondary {
+  background: #e2e8f0;
+  color: var(--fg);
+}
+
+button.secondary:hover {
+  background: #cbd5e1;
+}
+
+button.danger {
+  background: var(--cat-stage2);
+}
+
+button.danger:hover {
+  background: var(--cat-crisis);
+}
+
+.button-link {
+  display: inline-block;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.55rem 1rem;
+  border-radius: 8px;
+  text-decoration: none;
+  font: inherit;
+}
+
+.button-link:hover {
+  background: var(--accent-hover);
+}

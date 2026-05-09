@@ -7,6 +7,11 @@
   const statsRange = document.getElementById("stats-range");
   const statsOutput = document.getElementById("stats-output");
 
+  const historyRange = document.getElementById("history-range");
+  const historyOutput = document.getElementById("history-output");
+  const historyMessage = document.getElementById("history-message");
+  const exportPdf = document.getElementById("export-pdf");
+
   const chartRange = document.getElementById("chart-range");
   const chartMessage = document.getElementById("chart-message");
   const chartCanvas = document.getElementById("bp-chart");
@@ -40,8 +45,7 @@
       formMessage.className = "message success";
       form.reset();
       renderReadingCard(body);
-      // Refresh the chart so the new point shows up immediately.
-      loadChart(chartRange.value);
+      refreshAfterMutation();
     } catch (err) {
       formMessage.textContent = err.message;
       formMessage.className = "message error";
@@ -50,18 +54,23 @@
 
   function renderReadingCard(reading) {
     const cls = categoryClass(reading.category);
-    const measured = new Date(reading.measured_at).toLocaleString();
-    const pulse = reading.pulse != null ? `, pulse ${reading.pulse}` : "";
     latestReading.innerHTML = `
       <div class="reading-card">
         <div class="pair">${reading.systolic}/${reading.diastolic}</div>
         <span class="badge ${cls}">${escapeHtml(reading.category)}</span>
-        <div class="meta">
-          ${measured}${pulse}<br />
-          MAP ${reading.map} mmHg · pulse pressure ${reading.pulse_pressure} mmHg
-          ${reading.note ? `<br /><em>${escapeHtml(reading.note)}</em>` : ""}
-        </div>
+        <div class="meta">${readingMetaHtml(reading)}</div>
       </div>
+    `;
+  }
+
+  function readingMetaHtml(reading) {
+    const measured = new Date(reading.measured_at).toLocaleString();
+    const pulse = reading.pulse != null ? `, pulse ${reading.pulse}` : "";
+    const note = reading.note ? `<br /><em>${escapeHtml(reading.note)}</em>` : "";
+    return `
+      ${measured}${pulse}<br />
+      MAP ${reading.map} mmHg · pulse pressure ${reading.pulse_pressure} mmHg
+      ${note}
     `;
   }
 
@@ -120,6 +129,193 @@
         <div class="value">${escapeHtml(value)}</div>
       </div>
     `;
+  }
+
+  // ----- history (list + edit + delete) -----
+
+  // Cache of readings currently shown so edit can prefill from memory.
+  let historyCache = new Map();
+
+  historyRange.addEventListener("change", () => {
+    updateExportLink();
+    loadHistory(historyRange.value);
+  });
+
+  async function loadHistory(range) {
+    historyMessage.textContent = "";
+    historyMessage.className = "message";
+    try {
+      const res = await fetch(`/api/readings?range=${encodeURIComponent(range)}`);
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const items = body.items || [];
+      historyCache = new Map(items.map((r) => [String(r.id), r]));
+      renderHistory(items);
+    } catch (err) {
+      historyOutput.innerHTML = "";
+      historyMessage.textContent = err.message;
+      historyMessage.className = "message error";
+    }
+  }
+
+  function renderHistory(items) {
+    if (!items.length) {
+      historyOutput.innerHTML = "";
+      historyMessage.textContent = "No readings in this range yet.";
+      return;
+    }
+    historyMessage.textContent = "";
+    // Newest first in the list view.
+    const ordered = items.slice().reverse();
+    historyOutput.innerHTML = ordered.map(historyRowHtml).join("");
+  }
+
+  function historyRowHtml(reading) {
+    const cls = categoryClass(reading.category);
+    return `
+      <div class="history-row" data-id="${reading.id}">
+        <div class="history-row-main">
+          <div class="pair">${reading.systolic}/${reading.diastolic}</div>
+          <span class="badge ${cls}">${escapeHtml(reading.category)}</span>
+          <div class="meta">${readingMetaHtml(reading)}</div>
+        </div>
+        <div class="row-actions">
+          <button type="button" class="secondary" data-action="edit">Edit</button>
+          <button type="button" class="danger" data-action="delete">Delete</button>
+        </div>
+      </div>
+    `;
+  }
+
+  historyOutput.addEventListener("click", (event) => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const row = button.closest(".history-row");
+    if (!row) return;
+    const id = row.dataset.id;
+    const action = button.dataset.action;
+
+    if (action === "edit") {
+      const reading = historyCache.get(id);
+      if (reading) startEdit(row, reading);
+    } else if (action === "delete") {
+      deleteReading(id);
+    } else if (action === "save") {
+      saveEdit(row, id);
+    } else if (action === "cancel") {
+      const reading = historyCache.get(id);
+      if (reading) row.outerHTML = historyRowHtml(reading);
+    }
+  });
+
+  function startEdit(row, reading) {
+    const measured = toDatetimeLocal(reading.measured_at);
+    row.outerHTML = `
+      <div class="history-row history-row-editing" data-id="${reading.id}">
+        <form class="history-edit-form" data-id="${reading.id}">
+          <div class="row">
+            <label>
+              Systolic
+              <input type="number" name="systolic" min="50" max="250" required value="${reading.systolic}" />
+            </label>
+            <label>
+              Diastolic
+              <input type="number" name="diastolic" min="30" max="150" required value="${reading.diastolic}" />
+            </label>
+            <label>
+              Pulse
+              <input type="number" name="pulse" min="20" max="250" value="${reading.pulse ?? ""}" />
+            </label>
+            <label>
+              Measured at
+              <input type="datetime-local" name="measured_at" value="${measured}" />
+            </label>
+          </div>
+          <label>
+            Note
+            <textarea name="note" rows="2">${escapeHtml(reading.note ?? "")}</textarea>
+          </label>
+          <p class="message edit-message"></p>
+          <div class="row-actions">
+            <button type="button" data-action="save">Save</button>
+            <button type="button" class="secondary" data-action="cancel">Cancel</button>
+          </div>
+        </form>
+      </div>
+    `;
+  }
+
+  async function saveEdit(row, id) {
+    const form = row.querySelector("form.history-edit-form");
+    const message = row.querySelector(".edit-message");
+    message.textContent = "";
+    message.className = "message edit-message";
+
+    const data = Object.fromEntries(new FormData(form));
+    for (const key of ["pulse", "measured_at", "note"]) {
+      if (!data[key]) delete data[key];
+    }
+
+    try {
+      const res = await fetch(`/api/readings/${encodeURIComponent(id)}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      historyCache.set(String(body.id), body);
+      const newRow = document.createElement("div");
+      newRow.innerHTML = historyRowHtml(body).trim();
+      row.replaceWith(newRow.firstChild);
+      refreshAfterMutation();
+    } catch (err) {
+      message.textContent = err.message;
+      message.className = "message edit-message error";
+    }
+  }
+
+  async function deleteReading(id) {
+    if (!confirm("Delete this reading? This cannot be undone.")) return;
+    try {
+      const res = await fetch(`/api/readings/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok && res.status !== 204) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      historyCache.delete(String(id));
+      loadHistory(historyRange.value);
+      refreshAfterMutation();
+    } catch (err) {
+      historyMessage.textContent = err.message;
+      historyMessage.className = "message error";
+    }
+  }
+
+  function toDatetimeLocal(iso) {
+    // <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM" in local time.
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    const pad = (n) => String(n).padStart(2, "0");
+    return (
+      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+      `T${pad(d.getHours())}:${pad(d.getMinutes())}`
+    );
+  }
+
+  function updateExportLink() {
+    exportPdf.href = `/api/readings/export.pdf?range=${encodeURIComponent(historyRange.value)}`;
+  }
+
+  function refreshAfterMutation() {
+    loadHistory(historyRange.value);
+    loadChart(chartRange.value);
   }
 
   // ----- chart -----
@@ -201,5 +397,7 @@
   }
 
   // initial render
+  updateExportLink();
+  loadHistory(historyRange.value);
   loadChart(chartRange.value);
 })();

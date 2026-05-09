@@ -1,12 +1,13 @@
 """HTTP endpoints: HTML index, readings CRUD, stats, healthz."""
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
+from io import BytesIO
 from typing import Any, Optional
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, jsonify, render_template, request, send_file
 
-from . import db, repository
+from . import db, pdf_export, repository
 from .categorize import ValidationError, validate_reading
 
 log = logging.getLogger(__name__)
@@ -48,6 +49,56 @@ def register(app: Flask) -> None:
         except ValueError as exc:
             return jsonify({"error": str(exc)}), 400
         return jsonify({"items": items})
+
+    @app.put("/api/readings/<int:reading_id>")
+    def update_reading(reading_id: int):
+        payload = request.get_json(silent=True) or {}
+        try:
+            systolic = _required_int(payload, "systolic")
+            diastolic = _required_int(payload, "diastolic")
+            pulse = _optional_int(payload, "pulse")
+            measured_at = _optional_datetime(payload, "measured_at")
+            note = (payload.get("note") or "").strip() or None
+
+            validate_reading(systolic, diastolic, pulse)
+        except ValidationError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        reading = repository.update_reading(
+            reading_id,
+            systolic=systolic,
+            diastolic=diastolic,
+            pulse=pulse,
+            note=note,
+            measured_at=measured_at,
+        )
+        if reading is None:
+            return jsonify({"error": "reading not found"}), 404
+        return jsonify(reading)
+
+    @app.delete("/api/readings/<int:reading_id>")
+    def delete_reading(reading_id: int):
+        if not repository.delete_reading(reading_id):
+            return jsonify({"error": "reading not found"}), 404
+        return ("", 204)
+
+    @app.get("/api/readings/export.pdf")
+    def export_readings_pdf():
+        range_key = request.args.get("range", "all")
+        try:
+            items = repository.list_readings(range_key)
+            stats_data = repository.stats(range_key)
+        except ValueError as exc:
+            return jsonify({"error": str(exc)}), 400
+
+        pdf_bytes = pdf_export.build_readings_pdf(range_key, items, stats_data)
+        filename = f"bp-readings-{range_key}-{date.today().isoformat()}.pdf"
+        return send_file(
+            BytesIO(pdf_bytes),
+            mimetype="application/pdf",
+            as_attachment=True,
+            download_name=filename,
+        )
 
     @app.get("/api/stats")
     def stats():
