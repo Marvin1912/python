@@ -2,6 +2,7 @@
 
 from datetime import datetime
 from typing import Any, Optional
+from zoneinfo import ZoneInfo
 
 from . import db
 from .categorize import (
@@ -9,6 +10,11 @@ from .categorize import (
     mean_arterial_pressure,
     pulse_pressure,
 )
+
+# All timestamps are emitted to the API/UI in Europe/Berlin so the wall-clock
+# values match the user's expectations regardless of where the DB or process
+# is running (TIMESTAMPTZ stores UTC internally).
+DISPLAY_TZ = ZoneInfo("Europe/Berlin")
 
 # Range query → SQL WHERE fragment. Validated against this whitelist before use.
 _RANGE_WHERE = {
@@ -28,12 +34,12 @@ def _row_to_dict(row: tuple) -> dict[str, Any]:
     rid, measured_at, systolic, diastolic, pulse, note, created_at = row
     return {
         "id": rid,
-        "measured_at": measured_at.isoformat(),
+        "measured_at": measured_at.astimezone(DISPLAY_TZ).isoformat(),
         "systolic": systolic,
         "diastolic": diastolic,
         "pulse": pulse,
         "note": note,
-        "created_at": created_at.isoformat(),
+        "created_at": created_at.astimezone(DISPLAY_TZ).isoformat(),
         "category": categorize(systolic, diastolic),
         "map": mean_arterial_pressure(systolic, diastolic),
         "pulse_pressure": pulse_pressure(systolic, diastolic),

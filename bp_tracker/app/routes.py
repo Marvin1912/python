@@ -9,6 +9,7 @@ from flask import Flask, jsonify, render_template, request, send_file
 
 from . import db, pdf_export, repository
 from .categorize import ValidationError, validate_reading
+from .repository import DISPLAY_TZ
 
 log = logging.getLogger(__name__)
 
@@ -145,6 +146,10 @@ def _optional_datetime(payload: dict[str, Any], key: str) -> Optional[datetime]:
     # `<input type="datetime-local">` produces strings like "2026-05-09T10:30"
     # without timezone info; tolerate that and the standard ISO form.
     try:
-        return datetime.fromisoformat(raw)
+        dt = datetime.fromisoformat(raw)
     except ValueError:
         raise ValidationError(f"{key} must be ISO 8601 (e.g. 2026-05-09T10:30)")
+    # Treat naive input as Europe/Berlin wall-clock time.
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=DISPLAY_TZ)
+    return dt

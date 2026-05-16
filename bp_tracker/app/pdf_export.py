@@ -1,8 +1,10 @@
 """Render a readings export as a PDF document (reportlab Platypus)."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 from io import BytesIO
 from typing import Any
+
+from .repository import DISPLAY_TZ
 
 from reportlab.graphics.shapes import Circle, Drawing, Line, String
 from reportlab.lib import colors
@@ -52,7 +54,7 @@ def build_readings_pdf(
     story: list[Any] = []
 
     range_label = _RANGE_LABELS.get(range_key, range_key)
-    generated = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+    generated = datetime.now(DISPLAY_TZ).strftime("%Y-%m-%d %H:%M %Z")
 
     story.append(Paragraph("Blood Pressure Readings", styles["Title"]))
     story.append(Paragraph(f"Range: {range_label}", styles["Normal"]))
@@ -218,7 +220,7 @@ def _times_scatter_drawing(readings: list[dict[str, Any]]) -> Drawing:
 
     for r in readings:
         try:
-            dt = datetime.fromisoformat(r["measured_at"]).astimezone()
+            dt = datetime.fromisoformat(r["measured_at"]).astimezone(DISPLAY_TZ)
         except ValueError:
             continue
         x_frac = (dt.hour + dt.minute / 60 + dt.second / 3600) / 24
@@ -237,9 +239,9 @@ def _jitter_from_id(reading_id: int) -> float:
 
 
 def _format_measured_at(value: str) -> str:
-    # Repository emits ISO 8601 with timezone; render in UTC for stable PDFs.
+    # Repository emits ISO 8601 with timezone; render in Europe/Berlin.
     try:
-        dt = datetime.fromisoformat(value).astimezone(timezone.utc)
+        dt = datetime.fromisoformat(value).astimezone(DISPLAY_TZ)
     except ValueError:
         return value
     return dt.strftime("%Y-%m-%d %H:%M")
