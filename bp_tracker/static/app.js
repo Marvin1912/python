@@ -30,6 +30,37 @@
     "Hypertensive Crisis": "#7f1d1d",
   };
 
+  // All wall-clock display is anchored to Europe/Berlin, independent of the
+  // browser's local timezone. The API already emits ISO timestamps with the
+  // Berlin offset; this just makes formatting deterministic.
+  const DISPLAY_TZ = "Europe/Berlin";
+  const DISPLAY_LOCALE = "de-DE";
+
+  const displayFormatter = new Intl.DateTimeFormat(DISPLAY_LOCALE, {
+    timeZone: DISPLAY_TZ,
+    dateStyle: "short",
+    timeStyle: "short",
+  });
+
+  const partsFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: DISPLAY_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  });
+
+  function berlinParts(date) {
+    const parts = {};
+    for (const p of partsFormatter.formatToParts(date)) {
+      if (p.type !== "literal") parts[p.type] = p.value;
+    }
+    return parts;
+  }
+
   // ----- form submission -----
 
   form.addEventListener("submit", async (event) => {
@@ -76,7 +107,7 @@
   }
 
   function readingMetaHtml(reading) {
-    const measured = new Date(reading.measured_at).toLocaleString();
+    const measured = displayFormatter.format(new Date(reading.measured_at));
     const pulse = reading.pulse != null ? `, pulse ${reading.pulse}` : "";
     const note = reading.note ? `<br /><em>${escapeHtml(reading.note)}</em>` : "";
     return `
@@ -311,14 +342,13 @@
   }
 
   function toDatetimeLocal(iso) {
-    // <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM" in local time.
+    // <input type="datetime-local"> wants "YYYY-MM-DDTHH:MM"; we anchor it to
+    // Europe/Berlin so the prefilled value matches what the user sees and what
+    // the backend will store (naive input is interpreted as Berlin).
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return "";
-    const pad = (n) => String(n).padStart(2, "0");
-    return (
-      `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
-      `T${pad(d.getHours())}:${pad(d.getMinutes())}`
-    );
+    const p = berlinParts(d);
+    return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}`;
   }
 
   function updateExportLink() {
@@ -449,8 +479,8 @@
 
   function renderTimesScatter(items) {
     const points = items.map((r) => {
-      const d = new Date(r.measured_at);
-      const x = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+      const p = berlinParts(new Date(r.measured_at));
+      const x = Number(p.hour) + Number(p.minute) / 60 + Number(p.second) / 3600;
       return {
         x,
         y: jitterFromId(r.id),
@@ -501,9 +531,8 @@
             callbacks: {
               label: (ctx) => {
                 const p = ctx.raw;
-                const d = new Date(p.measured_at);
-                const hhmm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-                return `${hhmm} — ${p.category}`;
+                const parts = berlinParts(new Date(p.measured_at));
+                return `${parts.hour}:${parts.minute} — ${p.category}`;
               },
             },
           },
