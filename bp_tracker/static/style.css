@@ -217,6 +217,16 @@ button:hover {
   height: 320px;
 }
 
+.chart-wrapper--compact {
+  height: 120px;
+}
+
+.subheading {
+  margin: 1.5rem 0 0.75rem;
+  font-size: 1rem;
+  color: var(--muted);
+}
+
 .history-row {
   padding: 0.75rem 1rem;
   border: 1px solid var(--border);

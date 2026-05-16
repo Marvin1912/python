@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from io import BytesIO
 from typing import Any
 
+from reportlab.graphics.shapes import Circle, Drawing, Line, String
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -60,6 +61,13 @@ def build_readings_pdf(
 
     story.append(Paragraph("Summary", styles["Heading2"]))
     story.append(_summary_table(stats))
+    story.append(Spacer(1, 8 * mm))
+
+    story.append(Paragraph("Measurement times", styles["Heading2"]))
+    if readings:
+        story.append(_times_scatter_drawing(readings))
+    else:
+        story.append(Paragraph("No readings in this range.", styles["Normal"]))
     story.append(Spacer(1, 8 * mm))
 
     story.append(Paragraph("Readings", styles["Heading2"]))
@@ -171,6 +179,61 @@ def _readings_table(readings: list[dict[str, Any]]) -> Table:
             style.add("FONTNAME", (4, row_idx), (4, row_idx), "Helvetica-Bold")
     table.setStyle(style)
     return table
+
+
+def _times_scatter_drawing(readings: list[dict[str, Any]]) -> Drawing:
+    width = 170 * mm
+    height = 40 * mm
+    pad_left = 10 * mm
+    pad_right = 5 * mm
+    pad_top = 4 * mm
+    pad_bottom = 10 * mm
+
+    plot_w = width - pad_left - pad_right
+    plot_h = height - pad_top - pad_bottom
+    baseline_y = pad_bottom
+    band_center_y = pad_bottom + plot_h / 2
+    band_half_h = plot_h / 2 - 2
+
+    drawing = Drawing(width, height)
+
+    drawing.add(
+        Line(
+            pad_left,
+            baseline_y,
+            pad_left + plot_w,
+            baseline_y,
+            strokeColor=colors.grey,
+            strokeWidth=0.5,
+        )
+    )
+    for hour in (0, 3, 6, 9, 12, 15, 18, 21, 24):
+        x = pad_left + (hour / 24) * plot_w
+        drawing.add(
+            Line(x, baseline_y - 1.5, x, baseline_y + 1.5, strokeColor=colors.grey, strokeWidth=0.5)
+        )
+        label = String(x, baseline_y - 8, f"{hour:02d}:00", fontSize=7, fillColor=colors.grey)
+        label.textAnchor = "middle"
+        drawing.add(label)
+
+    for r in readings:
+        try:
+            dt = datetime.fromisoformat(r["measured_at"]).astimezone()
+        except ValueError:
+            continue
+        x_frac = (dt.hour + dt.minute / 60 + dt.second / 3600) / 24
+        x = pad_left + x_frac * plot_w
+        jitter = _jitter_from_id(int(r["id"]))
+        y = band_center_y + jitter * 2 * band_half_h
+        fill = _CATEGORY_COLORS.get(r.get("category", ""), colors.grey)
+        drawing.add(Circle(x, y, 1.6, fillColor=fill, strokeColor=None))
+
+    return drawing
+
+
+def _jitter_from_id(reading_id: int) -> float:
+    # Deterministic jitter in [-0.5, 0.5] — mirrors the JS implementation in static/app.js.
+    return (((reading_id * 9301 + 49297) % 233280) / 233280) - 0.5
 
 
 def _format_measured_at(value: str) -> str:

@@ -16,7 +16,19 @@
   const chartMessage = document.getElementById("chart-message");
   const chartCanvas = document.getElementById("bp-chart");
 
+  const timesScatterCanvas = document.getElementById("bp-times-scatter");
+  const timesScatterMessage = document.getElementById("times-scatter-message");
+
   let chart = null;
+  let timesScatter = null;
+
+  const CATEGORY_COLORS = {
+    Normal: "#16a34a",
+    Elevated: "#ca8a04",
+    "Stage 1": "#ea580c",
+    "Stage 2": "#dc2626",
+    "Hypertensive Crisis": "#7f1d1d",
+  };
 
   // ----- form submission -----
 
@@ -316,11 +328,15 @@
   function refreshAfterMutation() {
     loadHistory(historyRange.value);
     loadChart(chartRange.value);
+    loadTimesScatter(chartRange.value);
   }
 
   // ----- chart -----
 
-  chartRange.addEventListener("change", () => loadChart(chartRange.value));
+  chartRange.addEventListener("change", () => {
+    loadChart(chartRange.value);
+    loadTimesScatter(chartRange.value);
+  });
 
   async function loadChart(range) {
     chartMessage.textContent = "";
@@ -396,8 +412,109 @@
     };
   }
 
+  // ----- times scatter -----
+
+  async function loadTimesScatter(range) {
+    timesScatterMessage.textContent = "";
+    timesScatterMessage.className = "message";
+    try {
+      const res = await fetch(`/api/readings?range=${encodeURIComponent(range)}`);
+      const body = await res.json();
+      if (!res.ok) {
+        throw new Error(body.error || `HTTP ${res.status}`);
+      }
+      const items = body.items || [];
+      if (!items.length) {
+        if (timesScatter) {
+          timesScatter.destroy();
+          timesScatter = null;
+        }
+        timesScatterMessage.textContent = "No readings in this range yet.";
+        return;
+      }
+      renderTimesScatter(items);
+    } catch (err) {
+      timesScatterMessage.textContent = err.message;
+      timesScatterMessage.className = "message error";
+    }
+  }
+
+  function jitterFromId(id) {
+    return (((id * 9301 + 49297) % 233280) / 233280) - 0.5;
+  }
+
+  function pad2(n) {
+    return n < 10 ? `0${n}` : `${n}`;
+  }
+
+  function renderTimesScatter(items) {
+    const points = items.map((r) => {
+      const d = new Date(r.measured_at);
+      const x = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600;
+      return {
+        x,
+        y: jitterFromId(r.id),
+        category: r.category,
+        measured_at: r.measured_at,
+      };
+    });
+    const colorsArr = points.map((p) => CATEGORY_COLORS[p.category] || "#64748b");
+
+    if (timesScatter) timesScatter.destroy();
+    timesScatter = new Chart(timesScatterCanvas, {
+      type: "scatter",
+      data: {
+        datasets: [
+          {
+            label: "Reading time",
+            data: points,
+            backgroundColor: colorsArr,
+            borderColor: colorsArr,
+            pointRadius: 5,
+            pointHoverRadius: 6,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            type: "linear",
+            min: 0,
+            max: 24,
+            ticks: {
+              stepSize: 3,
+              callback: (value) => `${pad2(value)}:00`,
+            },
+            title: { display: false },
+          },
+          y: {
+            display: false,
+            min: -1,
+            max: 1,
+          },
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const p = ctx.raw;
+                const d = new Date(p.measured_at);
+                const hhmm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+                return `${hhmm} — ${p.category}`;
+              },
+            },
+          },
+        },
+      },
+    });
+  }
+
   // initial render
   updateExportLink();
   loadHistory(historyRange.value);
   loadChart(chartRange.value);
+  loadTimesScatter(chartRange.value);
 })();
